@@ -1,6 +1,7 @@
 const User = require('../models/User');
 //test1
 //test2
+//test3
 async function add(req, res) {
     try {
       const user = new User(req.body);

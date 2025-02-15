@@ -3,7 +3,7 @@ name: Full Stack MERN CI/CD Pipeline with Auto Merge
 on:
   push:
     branches:
-      - main  # Change this to your working branch if different
+      - main  # This will trigger the action only when changes are pushed to the main branch
 
 jobs:
   build-merge:
@@ -56,5 +56,9 @@ jobs:
           git fetch origin
           git rebase origin/main
 
-          # Only push if everything is successful
+          # Commit any changes (this prevents pushing if there are no changes)
+          git add .
+          git commit -m "CI: Auto-merge after successful pipeline" || echo "No changes to commit"
+          
+          # Only push if there are no errors
           git push origin main

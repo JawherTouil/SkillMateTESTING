@@ -8,6 +8,7 @@ on:
 jobs:
   build-merge:
     runs-on: ubuntu-latest
+    continue-on-error: false  # Cancel the pipeline on any failure
 
     steps:
       # Step 1: Checkout the code

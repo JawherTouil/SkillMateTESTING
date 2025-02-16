@@ -32,33 +32,31 @@ jobs:
         run: |
           npm install
 
-      # Step 5: Build React Frontend (This is production build, not dev server)
+      # Step 5: Build React Frontend
       - name: Build React Frontend
         working-directory: ./frontend
-        run: npm run build  # Use build instead of dev
+        run: npm run build
 
-      # Step 6: Build Backend (If applicable, else skip this step)
+      # Step 6: Build Backend
       - name: Build Backend
         working-directory: ./backend
-        run: npm run build  # Use if you have a build step for backend
+        run: npm run build
 
       # Step 7: Auto-merge if all steps pass
       - name: Auto-merge if all steps pass
+        if: success()
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          # Ensure we're working with the correct user and remote setup
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
           
-          # Fetch latest changes and rebase on top of main branch
           git fetch origin
           git rebase origin/main
 
-          # Commit any changes (this prevents pushing if there are no changes)
           git add .
           git commit -m "CI: Auto-merge after successful pipeline" || echo "No changes to commit"
           
-          # Only push if there are no errors
           git push origin main
+

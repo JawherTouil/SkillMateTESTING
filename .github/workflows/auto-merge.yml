@@ -2,11 +2,13 @@ name: MERN CI/CD Pipeline
 
 on:
   pull_request:
-    branches: [main]  # Trigger on PRs to main
+    branches: [main]
+  push:  # Added to show status on main branch commits too
+    branches: [main]
 
 permissions:
   contents: read
-  pull-requests: write  # For PR comments
+  pull-requests: write
 
 jobs:
   build-and-test:
@@ -20,41 +22,32 @@ jobs:
         with:
           node-version: 20.x
 
-      # Backend steps
-      - name: Install backend dependencies
-        run: npm install
+      # Backend
+      - name: Install & test backend
         working-directory: ./backend
+        run: |
+          npm install
+          npm test
 
-      - name: Run backend tests
-        run: npm test
-        working-directory: ./backend
-
-      # Frontend steps
-      - name: Install frontend dependencies
-        run: npm install
+      # Frontend
+      - name: Install & test frontend
         working-directory: ./frontend
+        run: |
+          npm install
+          npm test
+          npm run build
 
-      - name: Run frontend tests
-        run: npm test
-        working-directory: ./frontend
-
-      - name: Build frontend
-        run: npm run build
-        working-directory: ./frontend
-
-  # Failure notification (optional)
   notify-failure:
     needs: build-and-test
     if: ${{ failure() }}
     runs-on: ubuntu-latest
     steps:
-      - name: Notify PR of failure
-        uses: actions/github-script@v7
+      - uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "❌ Pipeline failed! Fix the issues before merging."
+              body: "🚨 Pipeline failed! Check the Actions logs."
             })

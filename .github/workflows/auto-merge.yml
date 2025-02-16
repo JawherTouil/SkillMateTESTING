@@ -8,7 +8,7 @@ on:
 jobs:
   build-merge:
     runs-on: ubuntu-latest
-    continue-on-error: false  # Cancel the pipeline on any failure
+    continue-on-error: true  # Continue the pipeline even if some steps fail
 
     steps:
       # Step 1: Checkout the code
@@ -60,4 +60,13 @@ jobs:
           git commit -m "CI: Auto-merge after successful pipeline" || echo "No changes to commit"
           
           git push origin main
+
+      # Step 8: Abort the push and go back in case of failure
+      - name: Abort the push and go back in case of failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git fetch origin
+          git reset --hard origin/main
 

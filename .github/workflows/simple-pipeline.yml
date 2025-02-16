@@ -51,7 +51,7 @@ jobs:
       # Step 7: Build Backend
       - name: Build Backend
         working-directory: ./backend
-        run: npm run build
+        run: npm run buil
 
       # Step 8: Cache Frontend Dependencies
       - name: Cache Frontend Dependencies

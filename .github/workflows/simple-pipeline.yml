@@ -48,17 +48,12 @@ jobs:
         working-directory: ./backend
         run: npm audit --audit-level=high || true
 
-      # Step 7: Run ESLint for Backend (Code Quality)
-      - name: Run ESLint on Backend
-        working-directory: ./backend
-        run: npx eslint . --ext .js,.jsx,.ts,.tsx || true
-
-      # Step 8: Build Backend
+      # Step 7: Build Backend
       - name: Build Backend
         working-directory: ./backend
         run: npm run build
 
-      # Step 9: Cache Frontend Dependencies
+      # Step 8: Cache Frontend Dependencies
       - name: Cache Frontend Dependencies
         uses: actions/cache@v4
         with:
@@ -66,22 +61,17 @@ jobs:
           key: frontend-node-modules-${{ hashFiles('frontend/package-lock.json') }}
           restore-keys: frontend-node-modules-
 
-      # Step 10: Install Frontend Dependencies
+      # Step 9: Install Frontend Dependencies
       - name: Install Frontend Dependencies
         working-directory: ./frontend
         run: npm install
 
-      # Step 11: Run Security Audit on Frontend
+      # Step 10: Run Security Audit on Frontend
       - name: Run Security Audit on Frontend
         working-directory: ./frontend
         run: npm audit --audit-level=high || true
 
-      # Step 12: Run ESLint for Frontend (Code Quality)
-      - name: Run ESLint on Frontend
-        working-directory: ./frontend
-        run: npx eslint . --ext .js,.jsx,.ts,.tsx || true
-
-      # Step 13: Build Frontend
+      # Step 11: Build Frontend
       - name: Build Frontend
         working-directory: ./frontend
         run: npm run build

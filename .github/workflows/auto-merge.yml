@@ -1,72 +1,60 @@
-name: Full Stack MERN CI/CD Pipeline with Auto Merge
+name: MERN CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - main  # This will trigger the action only when changes are pushed to the main branch
+  pull_request:
+    branches: [main]  # Trigger on PRs to main
+
+permissions:
+  contents: read
+  pull-requests: write  # For PR comments
 
 jobs:
-  build-merge:
+  build-and-test:
     runs-on: ubuntu-latest
-    continue-on-error: true  # Continue the pipeline even if some steps fail
-
     steps:
-      # Step 1: Checkout the code
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20.x
 
-      # Step 3: Install Backend
-      - name: Install Backend
+      # Backend steps
+      - name: Install backend dependencies
+        run: npm install
         working-directory: ./backend
-        run: |
-          npm install
 
-      # Step 4: Install Frontend
-      - name: Install Frontend
-        working-directory: ./frontend
-        run: |
-          npm install
-
-      # Step 5: Build React Frontend
-      - name: Build React Frontend
-        working-directory: ./frontend
-        run: npm run build
-
-      # Step 6: Build Backend
-      - name: Build Backend
+      - name: Run backend tests
+        run: npm test
         working-directory: ./backend
+
+      # Frontend steps
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: ./frontend
+
+      - name: Run frontend tests
+        run: npm test
+        working-directory: ./frontend
+
+      - name: Build frontend
         run: npm run build
+        working-directory: ./frontend
 
-      # Step 7: Auto-merge if all steps pass
-      - name: Auto-merge if all steps pass
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-          
-          git fetch origin
-          git rebase origin/main
-
-          git add .
-          git commit -m "CI: Auto-merge after successful pipeline" || echo "No changes to commit"
-          
-          git push origin main
-
-      # Step 8: Abort the push and go back in case of failure
-      - name: Abort the push and go back in case of failure
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git fetch origin
-          git reset --hard origin/main
-
+  # Failure notification (optional)
+  notify-failure:
+    needs: build-and-test
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify PR of failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "❌ Pipeline failed! Fix the issues before merging."
+            })

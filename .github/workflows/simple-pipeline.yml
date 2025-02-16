@@ -1,9 +1,9 @@
-name: Simple Build Pipeline for MERN Stack
+name: Full Stack Build Pipeline (MERN)
 
 on:
   push:
     branches:
-      - main  # Change if you're working on a different branch
+      - main  # Change if needed
 
 jobs:
   build:
@@ -25,12 +25,17 @@ jobs:
         working-directory: ./backend
         run: npm install
 
-      # Step 4: Install Frontend Dependencies
+      # Step 4: Build Backend
+      - name: Build Backend
+        working-directory: ./backend
+        run: npm run build
+
+      # Step 5: Install Frontend Dependencies
       - name: Install Frontend Dependencies
         working-directory: ./frontend
         run: npm install
 
-      # Step 5: Build Frontend
+      # Step 6: Build Frontend
       - name: Build Frontend
         working-directory: ./frontend
         run: npm run build

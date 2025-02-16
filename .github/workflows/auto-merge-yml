@@ -1,0 +1,53 @@
+name: MERN CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      # Backend
+      - name: Install & test backend
+        working-directory: ./backend
+        run: |
+          npm install
+          npm test
+
+      # Frontend
+      - name: Install & test frontend
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm test
+          npm run build
+
+  notify-failure:
+    needs: build-and-test
+    if: ${{ failure() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "🚨 Pipeline failed! Check errors in Actions → ${context.runId}"
+            })

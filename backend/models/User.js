@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
+// User Schema Definition
 const userSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -56,10 +57,19 @@ const userSchema = new mongoose.Schema({
     courses: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Course'
-    }]
+    }],
+    // Password Reset Fields
+    resetCode: {
+        type: String,
+        default: null
+    },
+    resetCodeExpires: {
+        type: Date,
+        default: null
+    }
 });
 
-// **Pre-save middleware for password hashing**
+// 🔐 **Password Hashing Middleware**
 userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
 
@@ -72,7 +82,7 @@ userSchema.pre('save', async function (next) {
     }
 });
 
-// **Method to compare passwords (for login)**
+// 🔍 **Password Comparison Method**
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };

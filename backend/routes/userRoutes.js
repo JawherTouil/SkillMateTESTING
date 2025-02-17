@@ -10,4 +10,8 @@ router.get("/allusers", userController.getAll);
 router.get("/getuser/:id", userController.getById);
 router.get("/searchuser/:username", userController.searchByUsername);
 router.post("/login", userController.login);
+router.post('/forgot-password', userController.forgotPassword);
+router.post('/reset-password', userController.resetPassword);
+router.post('/verify-code', userController.verifyResetCode);
+
 module.exports = router;

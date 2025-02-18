@@ -1,216 +1,253 @@
 const User = require('../models/User');
-const crypto = require('crypto');
-const nodemailer = require('nodemailer');
-async function login(req, res) {
-    try {
-        const { email, password } = req.body;
+const bcrypt = require('bcryptjs');
+const twilio = require('twilio');
 
-        // Check if user exists
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ message: "User not found" });
+// Initialize Twilio client only if credentials are available
+let twilioClient = null;
+if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    console.log('Initializing Twilio with:', {
+        accountSid: `${process.env.TWILIO_ACCOUNT_SID.substring(0, 6)}...`,
+        phoneNumber: process.env.TWILIO_PHONE_NUMBER
+    });
+    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+} else {
+    console.log('Missing Twilio credentials');
+}
+
+const userController = {
+    add: async (req, res) => {
+        try {
+            const user = new User(req.body);
+            await user.save();
+            res.status(200).json({ message: "User added successfully", user });
+        } catch (error) {
+            res.status(400).json({ error: error.message });
         }
+    },
 
-        // Compare password
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: "Invalid email or password" });
+    getAll: async (req, res) => {
+        try {
+            const users = await User.find();
+            res.status(200).json(users);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
+    },
 
-        // Successful login
-        res.status(200).json({ message: "Login successful", user: { id: user._id, username: user.username, email: user.email, role: user.role } });
-
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-}
-
-async function add(req, res) {
-    try {
-      const user = new User(req.body);
-      await user.save();
-      res.status(200).send("User added successfully");
-    } catch (error) {
-      res.status(400).send({ error: error.toString() });
-    }
-}
-
-async function getAll(req, res) {
-    try {
-        const users = await User.find();
-        res.status(200).send(users);
-    } catch (error) {
-        res.status(500).send({ error: error.toString() });
-    }
-}
-
-async function getById(req, res) {
-    try {
-        const user = await User.findById(req.params.id);
-        if (!user) {
-            return res.status(404).send({ error: "User not found" });
+    getById: async (req, res) => {
+        try {
+            const user = await User.findById(req.params.id);
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            res.status(200).json(user);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
-        res.status(200).send(user);
-    } catch (error) {
-        res.status(500).send({ error: error.toString() });
-    }
-}
+    },
 
-async function update(req, res) {
-    try {
-        const updatedUser = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!updatedUser) {
-            return res.status(404).send({ error: "User not found" });
+    update: async (req, res) => {
+        try {
+            const updatedUser = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
+            if (!updatedUser) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            res.status(200).json(updatedUser);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
-        res.status(200).send(updatedUser);
-    } catch (error) {
-        res.status(500).send({ error: error.toString() });
-    }
-}
+    },
 
-
-async function remove(req, res) {
-    try {
-        const deletedUser = await User.findByIdAndDelete(req.params.id);
-        if (!deletedUser) {
-            return res.status(404).send({ error: "User not found" });
+    remove: async (req, res) => {
+        try {
+            const deletedUser = await User.findByIdAndDelete(req.params.id);
+            if (!deletedUser) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            res.status(200).json({ message: "User deleted successfully" });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
-        res.status(200).send({ message: "User deleted successfully" });
-    } catch (error) {
-        res.status(500).send({ error: error.toString() });
-    }
-}
-async function searchByUsername(req, res) {
-    try {
-        const users = await User.find({ username: new RegExp(req.params.username, 'i') });
-        res.status(200).send(users);
-    } catch (error) {
-        res.status(500).send({ error: error.toString() });
-    }
-}
+    },
 
-// Generate a random 6-digit reset code
-const generateResetCode = () => Math.floor(100000 + Math.random() * 900000).toString();
+    login: async (req, res) => {
+        try {
+            const { email, password } = req.body;
+            const user = await User.findOne({ email });
 
-/** 📩 Step 1: Send Reset Code */
-const forgotPassword = async (req, res) => {
-    const { email } = req.body;
+            if (!user) {
+                return res.status(401).json({ message: 'Invalid credentials' });
+            }
 
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).send('User with this email does not exist.');
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
+                return res.status(401).json({ message: 'Invalid credentials' });
+            }
+
+            // Check if account is deactivated
+            if (user.status === 'deactivated') {
+                return res.status(403).json({ 
+                    message: 'Account is deactivated. Please reactivate it using your phone number.',
+                    deactivated: true,
+                    userId: user._id 
+                });
+            }
+
+            // Send user data without sensitive information
+            const userData = {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                status: user.status
+            };
+
+            res.json({ user: userData });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
         }
+    },
 
-        // Generate & store reset code
-        const resetCode = generateResetCode();
-        user.resetCode = resetCode;
-        user.resetCodeExpires = Date.now() + 15 * 60 * 1000; // 15 min expiry
-        await user.save();
+    deactivate: async (req, res) => {
+        try {
+            const { userId, phoneNumber } = req.body;
+            const user = await User.findById(userId);
+            
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
 
-        // Send code via email
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
+            if (!phoneNumber) {
+                return res.status(400).json({ message: 'Phone number is required for account deactivation' });
+            }
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Password Reset Code',
-            text: `Your password reset code is: ${resetCode}\nThis code is valid for 15 minutes.`,
-        };
+            // Update phone number and status
+            user.phoneNumber = phoneNumber;
+            user.status = 'deactivated';
+            await user.save();
 
-        await transporter.sendMail(mailOptions);
-        res.status(200).json({ message: 'Password reset code sent to your email.' });
+            res.json({ message: 'Account deactivated successfully' });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    },
 
-    } catch (error) {
-        console.error('Forgot password error:', error);
-        res.status(500).send('Failed to process your request.');
+    reactivateWithPhone: async (req, res) => {
+        try {
+            const { phoneNumber, userId } = req.body;
+            console.log('Attempting reactivation for:', { userId, phoneNumber });
+            
+            const user = await User.findById(userId);
+
+            if (!user) {
+                console.log('User not found:', userId);
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            if (user.phoneNumber !== phoneNumber) {
+                console.log('Phone number mismatch:', {
+                    provided: phoneNumber,
+                    stored: user.phoneNumber
+                });
+                return res.status(400).json({ message: 'Phone number does not match our records' });
+            }
+
+            // Generate 6-digit verification code
+            const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Save code and expiration time
+            user.verificationCode = verificationCode;
+            user.verificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+            await user.save();
+
+            // Check if Twilio is configured
+            if (!twilioClient) {
+                console.log('Twilio not configured - Development mode');
+                console.log('Development mode - Verification code:', verificationCode);
+                return res.json({ 
+                    message: 'Development mode: Check server console for verification code',
+                    devCode: process.env.NODE_ENV === 'development' ? verificationCode : undefined
+                });
+            }
+
+            console.log('Attempting to send SMS to:', phoneNumber);
+            
+            // Send SMS
+            try {
+                const message = await twilioClient.messages.create({
+                    body: `Your SkillMate verification code is: ${verificationCode}. Valid for 10 minutes.`,
+                    from: process.env.TWILIO_PHONE_NUMBER,
+                    to: phoneNumber
+                });
+                
+                console.log('SMS sent successfully:', {
+                    messageId: message.sid,
+                    status: message.status
+                });
+                
+                res.json({ message: 'Verification code sent successfully' });
+            } catch (twilioError) {
+                console.error('Twilio Error:', {
+                    code: twilioError.code,
+                    message: twilioError.message,
+                    moreInfo: twilioError.moreInfo
+                });
+                
+                res.status(500).json({ 
+                    message: 'Failed to send SMS. Please check your phone number format or try again later.',
+                    error: twilioError.message
+                });
+            }
+        } catch (error) {
+            console.error('Reactivation error:', error);
+            res.status(500).json({ 
+                message: 'Failed to send verification code. Please ensure Twilio credentials are properly configured.',
+                details: process.env.NODE_ENV === 'development' ? error.message : undefined
+            });
+        }
+    },
+
+    verifyAndReactivate: async (req, res) => {
+        try {
+            const { userId, verificationCode } = req.body;
+            const user = await User.findById(userId);
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            if (!user.verificationCode || !user.verificationCodeExpires) {
+                return res.status(400).json({ message: 'No verification code requested' });
+            }
+
+            if (Date.now() > user.verificationCodeExpires) {
+                return res.status(400).json({ message: 'Verification code expired' });
+            }
+
+            if (user.verificationCode !== verificationCode) {
+                return res.status(400).json({ message: 'Invalid verification code' });
+            }
+
+            user.status = 'active';
+            user.verificationCode = undefined;
+            user.verificationCodeExpires = undefined;
+            await user.save();
+
+            const userData = {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                status: user.status
+            };
+
+            res.json({ user: userData, message: 'Account reactivated successfully' });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
     }
 };
 
-/** 🔍 Step 2: Verify Reset Code */
-const verifyResetCode = async (req, res) => {
-    const { email, code } = req.body;
-
-    try {
-        const user = await User.findOne({ email });
-        if (!user || user.resetCode !== code) {
-            return res.status(400).json({ success: false, message: 'Invalid or expired code.' });
-        }
-
-        // Check if code has expired
-        if (user.resetCodeExpires < Date.now()) {
-            return res.status(400).json({ success: false, message: 'Reset code expired.' });
-        }
-
-        res.status(200).json({ success: true });
-
-    } catch (error) {
-        console.error('Code verification error:', error);
-        res.status(500).json({ message: 'Error verifying reset code.' });
-    }
-};
-
-/** 🔐 Step 3: Reset Password */
-const resetPassword = async (req, res) => {
-    const { email, resetCode, newPassword } = req.body;
-
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).send('User with this email does not exist.');
-        }
-
-        // Validate code
-        if (user.resetCode !== resetCode || user.resetCodeExpires < Date.now()) {
-            return res.status(400).send('Invalid or expired reset code.');
-        }
-
-        // Hash the new password
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.password = hashedPassword;
-        user.resetCode = undefined;
-        user.resetCodeExpires = undefined;
-        await user.save();
-
-        res.status(200).send('Password successfully reset!');
-
-    } catch (error) {
-        console.error('Password reset error:', error);
-        res.status(500).send('Error resetting password.');
-    }
-};
-
-/** 👤 Login Logic (Unchanged) */
-async function login(req, res) {
-    const { email, password } = req.body;
-
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ message: "User not found" });
-        }
-
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: "Invalid email or password" });
-        }
-
-        res.status(200).json({
-            message: "Login successful",
-            user: { id: user._id, username: user.username, email: user.email, role: user.role }
-        });
-
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ error: error.message });
-    }
-}
-
-module.exports = {add,remove,update,getAll,getById,searchByUsername,login,forgotPassword,resetPassword,verifyResetCode,login};
-
+module.exports = userController;

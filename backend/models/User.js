@@ -50,6 +50,28 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    status: {
+        type: String,
+        enum: ['active', 'deactivated'],
+        default: 'active'
+    },
+    phoneNumber: {
+        type: String,
+        validate: {
+            validator: function(v) {
+                return /^\+?[1-9]\d{1,14}$/.test(v);
+            },
+            message: props => `${props.value} is not a valid phone number! Please use international format (e.g., +1234567890)`
+        }
+    },
+    verificationCode: {
+        type: String,
+        required: false
+    },
+    verificationCodeExpires: {
+        type: Date,
+        required: false
+    },
     createdAt: {
         type: Date,
         default: Date.now
@@ -82,9 +104,20 @@ userSchema.pre('save', async function (next) {
     }
 });
 
+// Pre-save middleware to validate phone number when deactivating
+userSchema.pre('save', function(next) {
+    if (this.isModified('status') && this.status === 'deactivated' && !this.phoneNumber) {
+        next(new Error('Phone number is required for account deactivation'));
+    }
+    next();
+});
+
 // 🔍 **Password Comparison Method**
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
+
+// Add index for verification code expiration
+userSchema.index({ verificationCodeExpires: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('User', userSchema);

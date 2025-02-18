@@ -1,9 +1,17 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const userRoutes = require('./routes/userRoutes');
 const dbConfig = require('./config/db.json');
-require('dotenv').config();
+
+// Debug environment variables
+console.log('Environment Check:', {
+    hasTwilioSID: !!process.env.TWILIO_ACCOUNT_SID,
+    hasTwilioToken: !!process.env.TWILIO_AUTH_TOKEN,
+    hasTwilioPhone: !!process.env.TWILIO_PHONE_NUMBER,
+    nodeEnv: process.env.NODE_ENV
+});
 
 const app = express();
 

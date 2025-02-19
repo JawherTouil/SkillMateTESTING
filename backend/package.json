@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "build": "echo 'No build needed for Node.js' && exit 0",
+    "build": "npm run dev",
     "test": "jest"
   },
   "keywords": [],

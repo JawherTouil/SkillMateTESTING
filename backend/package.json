@@ -6,8 +6,7 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "build": "echo 'No build needed for Node.js' && exit 0",
-    "test": "cross-env NODE_ENV='test' mocha --timeout 20000 --exit"
-
+    "test": "jest"
   },
   "keywords": [],
   "author": "",

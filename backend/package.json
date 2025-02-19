@@ -4,9 +4,10 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js",
-    "build": "npm run dev",
-    "test": "jest"
+  "dev": "nodemon app.js",
+  "build": "node app.js",
+  "build-dev": "nodemon app.js",
+  "test": "jest"
   },
   "keywords": [],
   "author": "",

@@ -58,6 +58,21 @@ const userController = {
         }
     },
 
+    // Handle errors in non-async/await syntax
+    updateAlt: (req, res) => {
+        User.findByIdAndUpdate(req.params.id, req.body, { new: true })
+            .then(updatedUser => {
+                if (!updatedUser) {
+                    return res.status(404).json({ error: "User not found" });
+                }
+                res.status(200).json(updatedUser);
+            })
+            .catch(error => {
+                res.status(500).json({ error: error.message });
+            });
+    }
+    ,
+
     remove: async (req, res) => {
         try {
             const deletedUser = await User.findByIdAndDelete(req.params.id);
@@ -207,7 +222,7 @@ const userController = {
             });
         }
     },
-
+//aa
     verifyAndReactivate: async (req, res) => {
         try {
             const { userId, verificationCode } = req.body;
